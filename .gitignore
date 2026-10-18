@@ -1,0 +1,52 @@
+# ── 大学 / 厂商提供材料：本地留存，不入 git（将来推公开仓库时不会误带走）──
+open_source_reference/
+hardware/
+docs/emails/
+
+# ── 数据与模型（体积大、可再生产）──
+data/
+models/
+src/gesture_trial/data/
+src/gesture_trial/models/
+src/gesture_trial/_selftest_snapshot/
+
+# ── Python ──
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+
+# ── 媒体与大二进制 ──
+*.mp3
+*.m4a
+*.wav
+*.mp4
+*.mov
+*.zip
+*.exe
+*.msi
+*.sys
+*.inf
+*.cat
+*.dll
+
+# ── 编辑器 / 系统 ──
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+~$*
+
+# 运行期日志（看门狗 CSV，不入库）
+logs/
+
+# ── 个人选题笔记快照：含学校教职工联系方式与 Proposal 草稿，不进公开仓库 ──
+docs/notes_snapshot_*/
+
+# ── 本地改稿脚本：把表单/报告正文当字符串内嵌，公开等于公开草稿 ──
+tools/three_drafts.py
+tools/repair_intro.py
+tools/rewrite_intro.py
+tools/shorten_intro.py
