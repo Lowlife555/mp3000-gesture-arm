@@ -122,6 +122,31 @@ class Predictor:
 
 
 # --------------------------------------------------------------------------
+# 全量验证集参考结果
+# --------------------------------------------------------------------------
+def load_fullval() -> dict:
+    """读取 09_pi_fullval.py 产出的全量验证集结果（379 张）。
+
+    演示页上的「本次运行」是 36 张固定样本循环出来的数字，**不是模型准确率**；
+    这个才是可以对外引用的那个数。两者必须并列显示，否则容易被误读。
+    """
+    p = Path(__file__).resolve().parent / "fullval.json"
+    try:
+        d = json.loads(p.read_text(encoding="utf-8"))
+        return {
+            "n": d["n"],
+            "correct": d["correct"],
+            "accuracy": d["accuracy"],
+            "median_ms": d.get("latency_ms", {}).get("median"),
+            "model": d.get("model", ""),
+            "measured_on": d.get("measured_on", ""),
+            "per_class": d.get("per_class", {}),
+        }
+    except Exception as e:  # 文件缺失/损坏都不该让演示挂掉
+        print(f"WARN: fullval.json 不可用（{e}）；页面将不显示全量数字", flush=True)
+        return {}
+
+
 # 全局状态
 # --------------------------------------------------------------------------
 class State:
@@ -133,6 +158,7 @@ class State:
         self.index = 0
         self.current = None            # 当前结果 dict
         self.stats = {"n": 0, "correct": 0}
+        self.fullval = load_fullval()  # 379 张全量的固定结果（≠ 本次运行）
         self.frame = b""
         self.frame_seq = 0
         # 帧历史：seq -> {"jpeg": bytes, "meta": dict}
@@ -174,6 +200,7 @@ class State:
                 d["interval"] = self.interval
                 d["uptime_s"] = round(time.time() - self.started, 1)
                 d["live_seq"] = self.frame_seq
+                d["fullval"] = self.fullval
                 return d
             d = {
                 "mode": self.mode,
@@ -186,6 +213,7 @@ class State:
                 "interval": self.interval,
                 "uptime_s": round(time.time() - self.started, 1),
                 "live_seq": self.frame_seq,
+                "fullval": self.fullval,
             }
             if self.current:
                 d.update(self.current)
@@ -274,15 +302,23 @@ def compose(img: Image.Image, res: dict | None, truth: str | None, label: str) -
     line2 = f"truth: {truth or '?'}   |   {res['ms']:.1f} ms on Raspberry Pi 4B"
     d.text((18, y0 + 60), line2, font=font(21), fill=(200, 205, 215))
 
-    # 右上角：累计
+    # 右上角：本次运行累计 —— 注意这是 36 张固定样本循环出来的，不是模型准确率。
+    # ⚠️ 烙印一律用 ASCII：PIL 加载的字体没有中文字形，中文会渲染成方块。
     if STATE:
         s = STATE.stats
         acc = (s["correct"] / s["n"]) if s["n"] else 0.0
+        fv = STATE.fullval.get("accuracy") if STATE.fullval else None
         d.text(
             (CANVAS_W - 250, y0 + 12),
             f"{s['correct']}/{s['n']}  {acc:.1%}",
-            font=font(24),
+            font=font(22),
             fill=(190, 190, 200),
+        )
+        d.text(
+            (CANVAS_W - 250, y0 + 40),
+            f"all379 {fv:.1%}" if fv is not None else "all379 n/a",
+            font=font(18),
+            fill=(150, 155, 165),
         )
     # 右下角：序号
     if STATE and STATE.image_files:
@@ -546,12 +582,23 @@ PAGE = """<!doctype html>
       <div id="bars"></div>
     </div>
     <div class="card">
-      <h2>累计（本次运行）</h2>
+      <h2>本次运行（36 张循环）</h2>
       <div class="row"><span class="k">已识别</span><span class="v" id="n">0</span></div>
       <div class="row"><span class="k">判对</span><span class="v" id="correct">0</span></div>
       <div class="row"><span class="k">准确率</span><span class="v" id="acc">—</span></div>
       <div class="row"><span class="k">单张耗时</span><span class="v" id="ms">—</span></div>
       <div class="row"><span class="k">进度</span><span class="v" id="prog">—</span></div>
+      <div style="font-size:12px;color:#8a8f9a;margin-top:8px;line-height:1.45">
+        这 36 张是验证集的固定子集，循环播放。
+        <b>此处百分比不是模型准确率</b>。</div>
+    </div>
+    <div class="card">
+      <h2>模型真实准确率（379 张全量）</h2>
+      <div class="row"><span class="k">判对</span><span class="v" id="fv-correct">—</span></div>
+      <div class="row"><span class="k">准确率</span><span class="v" id="fv-acc">—</span></div>
+      <div class="row"><span class="k">延迟中位数</span><span class="v" id="fv-ms">—</span></div>
+      <div style="font-size:12px;color:#8a8f9a;margin-top:8px;line-height:1.45"
+           id="fv-note">来自 09_pi_fullval.py 在树莓派上的实测。</div>
     </div>
     <div class="card">
       <h2>操作</h2>
@@ -604,6 +651,15 @@ function renderFrame(d){
     st.n ? ((st.correct/st.n*100).toFixed(1) + '%') : '—';
   document.getElementById('ms').textContent = d.ms != null ? d.ms + ' ms' : '—';
   document.getElementById('prog').textContent = (d.index+1) + ' / ' + d.total;
+
+  // 全量验证集（379 张）—— 固定参考值，与上面的"本次运行"严格区分
+  const fv = d.fullval || {};
+  if (fv.n) {
+    document.getElementById('fv-correct').textContent = fv.correct + ' / ' + fv.n;
+    document.getElementById('fv-acc').textContent = (fv.accuracy*100).toFixed(2) + '%';
+    document.getElementById('fv-ms').textContent =
+      fv.median_ms != null ? fv.median_ms + ' ms' : '—';
+  }
 }
 
 // 与帧无关的实时状态
