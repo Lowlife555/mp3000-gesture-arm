@@ -132,23 +132,66 @@ def selftest():
         print("  3) 权限：sudo 需要密码时先跑一次 授权USB访问.sh")
         return 3
 
-    dd = arm.info["dd"]
-    print("✓ 已连接 %04X:%04X  总线上地址 %d" % (dd.idVendor, dd.idProduct, dd.bus_address))
-    print("· 通道：%s" % ", ".join("%s=%s" % (k, v) for k, v in
-                                  sorted(arm.info.get("methods", {}).items())) or "?")
-    print("· 发停止帧 ...")
-    print("  → %s  %s" % (STOP.hex(" ").upper(), describe(STOP)))
-    try:
-        arm.send(STOP)
-        print("✓ 停止帧已发出（这是安全的第一条命令）")
-    except Exception as e:
-        print("✗ 发送失败：%r" % e)
-        arm.close()
-        return 4
+    info = arm.info or {}
+    dd = info.get("dd")
+    print("✓ 已连接 %04X:%04X  总线 %s 地址 %s"
+          % (dd.idVendor, dd.idProduct,
+             info.get("bus", "?"), info.get("addr", "?")))
+    print("· 端点：OUT=%s  IN=%s"
+          % (("0x%02X" % arm.ep_out) if arm.ep_out else "无",
+             ("0x%02X" % arm.ep_in) if arm.ep_in else "无"))
+    if arm.ep_out is None:
+        print("  （没有 OUT 端点，只能走控制传输 —— 这是预期结果）")
 
-    arm.close()
+    def send(label, cmd):
+        try:
+            method, rc = arm.send(cmd)
+        except Exception as e:
+            print("✗ %s 失败：%r" % (label, e))
+            return False
+        print("  %-6s → %s   %-14s [%s rc=%d]"
+              % (label, cmd.hex(" ").upper(), describe(cmd), method, rc))
+        return True
+
+    try:
+        print("")
+        print("· 1/5  停止帧（上电先确保臂是停着的）")
+        if not send("STOP", STOP):
+            return 4
+
+        print("· 2/5  爪内灯：亮 0.8 秒，然后关")
+        if not send("灯开", b"\x00\x00\x01") or not send("灯关", b"\x00\x00\x00"):
+            return 4
+        time.sleep(0.3)
+
+        print("· 3/5  夹爪：合 400 ms")
+        arm.act("gripper", 2, 400)
+        time.sleep(0.4)
+
+        print("· 4/5  夹爪：松 400 ms")
+        arm.act("gripper", 1, 400)
+        time.sleep(0.3)
+
+        print("· 5/5  收尾停止帧")
+        if not send("STOP", STOP):
+            return 4
+    except Exception as e:
+        print("✗ 自检过程中出错：%r" % e)
+        return 5
+    finally:
+        try:
+            arm.close()
+        except Exception:
+            pass
+
     print("=" * 60)
-    print("✓ 自检通过。图形界面用：python3 cebek_oneclick.py")
+    print("✓ 自检通过。")
+    print("  应该看到：灯亮过又灭，夹爪两个方向各动一次。")
+    print("  看到了 = 协议正确，可以进下一步。")
+    print("  没看到动作 = 机械臂没通电（6 V 必须接 BKR），或协议不对。")
+    print("")
+    print("  图形界面（要在 Pi 自己的桌面上跑，SSH 里没有屏幕）：")
+    print("    python3 cebek_oneclick.py")
     print("=" * 60)
     return 0
 
@@ -445,9 +488,10 @@ def run_gui():
         if arm.connect():
             state["arm"] = arm
             dd = arm.info["dd"]
-            set_state("ok", "设备 %04X:%04X   总线地址 %d\n"
+            set_state("ok", "设备 %04X:%04X   总线 %s 地址 %s\n"
                             "这条命令是锁存的：发一条就一直动，直到下一条。"
-                            % (dd.idVendor, dd.idProduct, dd.bus_address))
+                            % (dd.idVendor, dd.idProduct,
+                               arm.info.get("bus", "?"), arm.info.get("addr", "?")))
             # 连上第一件事：确保臂是停着的
             try:
                 arm.send(STOP)
@@ -461,7 +505,7 @@ def run_gui():
             devs = cebek.LibUSB().list_devices() if hasattr(cebek, "LibUSB") else []
         except Exception:
             devs = []
-        found = any(d.idVendor == VID and d.idProduct == PID for d in devs)
+        found = any(d.get("vid") == VID and d.get("pid") == PID for d in devs)
         if found:
             set_state("noperm",
                       "系统认到了这块设备，但当前用户没有读写权限。\n"
