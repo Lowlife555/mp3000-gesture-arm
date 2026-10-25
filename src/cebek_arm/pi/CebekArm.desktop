@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Cebek Arm Console
+Name[zh_CN]=Cebek 机械臂控制台
+GenericName=Robot Arm Console
+GenericName[zh_CN]=机械臂控制台
+Comment=OWI-535 3-byte protocol over USB via libusb
+Comment[zh_CN]=通过 libusb 用 OWI-535 三字节协议控制机械臂
+Exec=bash -c 'cd "$HOME/Desktop/CebekArm" && python3 cebek.py gui; echo; echo "退出码 $?"; sleep 20'
+Icon=applications-engineering
+Terminal=true
+Categories=Utility;Engineering;
+Keywords=robot;arm;usb;cebek;owi;
+StartupNotify=false

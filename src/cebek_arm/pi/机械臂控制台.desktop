@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Cebek 机械臂控制台
+Name[en_GB]=Cebek Arm Console
+GenericName=机械臂手动控制
+Comment=点开即用：自动搜索并连接 Cebek C-9895.2 / OWI-535 机械臂
+Comment[en_GB]=One-click console for the Cebek C-9895.2 (OWI-535) arm
+Exec=bash -lc 'cd "$HOME/Desktop/CebekArm" && python3 cebek_oneclick.py 2>>"$HOME/Desktop/CebekArm/运行日志.txt"'
+Icon=input-gaming
+Terminal=false
+Categories=Utility;
+Keywords=arm;robot;cebek;owi;机械臂;
+StartupNotify=true

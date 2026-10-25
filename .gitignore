@@ -50,3 +50,20 @@ tools/three_drafts.py
 tools/repair_intro.py
 tools/rewrite_intro.py
 tools/shorten_intro.py
+
+# ── Keil 编译产物（src/cebek_arm/stm32/）──
+new/
+*.o
+*.d
+*.crf
+*.dep
+*.lnp
+*.sct
+*.map
+*.axf
+*.hex
+*.lst
+*.htm
+*.bak
+*.uvguix.*
+运行日志.txt
